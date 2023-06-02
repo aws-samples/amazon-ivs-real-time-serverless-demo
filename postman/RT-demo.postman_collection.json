@@ -1,0 +1,341 @@
+{
+	"info": {
+		"_postman_id": "c8e5653b-a173-4664-8e4e-953ef7d079ea",
+		"name": "RT-demo",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+	},
+	"item": [
+		{
+			"name": "Create",
+			"request": {
+				"auth": {
+					"type": "apikey"
+				},
+				"method": "POST",
+				"header": [
+					{
+						"key": "x-api-key",
+						"value": "{{api_key}}",
+						"type": "default"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n    \"cid\": \"{{cid}}\",\n    \"hostId\": \"{{hostId}}\",\n    \"hostAttributes\": {\n        \"avatar\": \"avtr\"\n    },\n    \"type\": \"{{type}}\"\n}",
+					"options": {
+						"raw": {
+							"language": "json"
+						}
+					}
+				},
+				"url": {
+					"raw": "https://{{cid}}.cloudfront.net/create",
+					"protocol": "https",
+					"host": [
+						"{{cid}}",
+						"cloudfront",
+						"net"
+					],
+					"path": [
+						"create"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "Join",
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "x-api-key",
+						"value": "{{api_key}}",
+						"type": "default"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n    \"hostId\": \"{{hostId}}\",\n    \"userId\": \"<userId>\",\n    \"attributes\": {\n        \"avatar\": \"<avtr>\"\n    }\n}",
+					"options": {
+						"raw": {
+							"language": "json"
+						}
+					}
+				},
+				"url": {
+					"raw": "https://{{cid}}.cloudfront.net/join",
+					"protocol": "https",
+					"host": [
+						"{{cid}}",
+						"cloudfront",
+						"net"
+					],
+					"path": [
+						"join"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "CreateChatToken",
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "x-api-key",
+						"value": "{{api_key}}",
+						"type": "default"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n    \"hostId\": \"{{hostId}}\",\n    \"userId\": \"<userId>\",\n    \"attributes\": {\n        \"avatar\": \"<avtr>\"\n    }\n}",
+					"options": {
+						"raw": {
+							"language": "json"
+						}
+					}
+				},
+				"url": {
+					"raw": "https://{{cid}}.cloudfront.net/chatToken/create",
+					"protocol": "https",
+					"host": [
+						"{{cid}}",
+						"cloudfront",
+						"net"
+					],
+					"path": [
+						"chatToken",
+						"create"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "CastVote",
+			"request": {
+				"method": "POST",
+				"header": [
+					{
+						"key": "x-api-key",
+						"value": "{{api_key}}",
+						"type": "default"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n    \"hostId\": \"{{hostId}}\", \n    \"vote\": \"<candidateId>\"\n}",
+					"options": {
+						"raw": {
+							"language": "json"
+						}
+					}
+				},
+				"url": {
+					"raw": "https://{{cid}}.cloudfront.net/castVote",
+					"protocol": "https",
+					"host": [
+						"{{cid}}",
+						"cloudfront",
+						"net"
+					],
+					"path": [
+						"castVote"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "Disconnect",
+			"request": {
+				"method": "PUT",
+				"header": [
+					{
+						"key": "x-api-key",
+						"value": "{{api_key}}",
+						"type": "default"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n    \"hostId\": \"{{hostId}}\",\n    \"userId\": \"<userId>\",\n    \"participantId\": \"<pid>\"\n}",
+					"options": {
+						"raw": {
+							"language": "json"
+						}
+					}
+				},
+				"url": {
+					"raw": "https://{{cid}}.cloudfront.net/disconnect",
+					"protocol": "https",
+					"host": [
+						"{{cid}}",
+						"cloudfront",
+						"net"
+					],
+					"path": [
+						"disconnect"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "UpdateMode",
+			"request": {
+				"method": "PUT",
+				"header": [
+					{
+						"key": "x-api-key",
+						"value": "{{api_key}}",
+						"type": "default"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n    \"hostId\": \"{{hostId}}\",\n    \"userId\": \"<userId>\",\n    \"mode\": \"guest_spot\"\n}",
+					"options": {
+						"raw": {
+							"language": "json"
+						}
+					}
+				},
+				"url": {
+					"raw": "https://{{cid}}.cloudfront.net/update/mode",
+					"protocol": "https",
+					"host": [
+						"{{cid}}",
+						"cloudfront",
+						"net"
+					],
+					"path": [
+						"update",
+						"mode"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "UpdateSeats",
+			"request": {
+				"method": "PUT",
+				"header": [
+					{
+						"key": "x-api-key",
+						"value": "{{api_key}}",
+						"type": "default"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n    \"hostId\": \"{{hostId}}\",\n    \"userId\": \"<userId>\",\n    \"seats\": [\n        \"<host-pid>\",\n        \"<pid1>\",\n        \"\",\n        \"\",\n        \"\",\n        \"<pid5>\",\n        \"\",\n        \"\",\n        \"\",\n        \"<pid2>\",\n        \"\",\n        \"\"\n    ]\n}",
+					"options": {
+						"raw": {
+							"language": "json"
+						}
+					}
+				},
+				"url": {
+					"raw": "https://{{cid}}.cloudfront.net/update/seats",
+					"protocol": "https",
+					"host": [
+						"{{cid}}",
+						"cloudfront",
+						"net"
+					],
+					"path": [
+						"update",
+						"seats"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "List",
+			"request": {
+				"method": "GET",
+				"header": [
+					{
+						"key": "x-api-key",
+						"value": "{{api_key}}",
+						"type": "default"
+					}
+				],
+				"url": {
+					"raw": "https://{{cid}}.cloudfront.net",
+					"protocol": "https",
+					"host": [
+						"{{cid}}",
+						"cloudfront",
+						"net"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "Verify",
+			"request": {
+				"method": "GET",
+				"header": [
+					{
+						"key": "x-api-key",
+						"value": "{{api_key}}",
+						"type": "default"
+					}
+				],
+				"url": {
+					"raw": "https://{{cid}}.cloudfront.net/verify",
+					"protocol": "https",
+					"host": [
+						"{{cid}}",
+						"cloudfront",
+						"net"
+					],
+					"path": [
+						"verify"
+					]
+				}
+			},
+			"response": []
+		},
+		{
+			"name": "Delete",
+			"request": {
+				"method": "DELETE",
+				"header": [
+					{
+						"key": "x-api-key",
+						"value": "{{api_key}}",
+						"type": "default"
+					}
+				],
+				"body": {
+					"mode": "raw",
+					"raw": "{\n    \"hostId\": \"{{hostId}}\"\n}",
+					"options": {
+						"raw": {
+							"language": "json"
+						}
+					}
+				},
+				"url": {
+					"raw": "https://{{cid}}.cloudfront.net",
+					"protocol": "https",
+					"host": [
+						"{{cid}}",
+						"cloudfront",
+						"net"
+					]
+				}
+			},
+			"response": []
+		}
+	]
+}
