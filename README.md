@@ -24,7 +24,44 @@ For configuration specifics, refer to the [AWS CLI User Guide](https://docs.aws.
 
 ![Architecture Diagram](architecture.png)
 
-## Deploying the backend stack
+## One-click deploy
+
+1. Click the **Launch stack** button that corresponds to the region that is geographically closest to you
+
+   | **North America**       |                                                                                                                                                                                                                                                                                                                                                                                   |
+   | ----------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+   | us-east-1 (N. Virginia) | [![Launch Stack](https://s3.amazonaws.com/cloudformation-examples/cloudformation-launch-stack.png)](https://console.aws.amazon.com/cloudformation/home?region=us-east-1#/stacks/new?stackName=IVSRealTimeDemo&templateURL=https://ivs-demos-cf-stacks-us-east-1.s3.us-east-1.amazonaws.com/IVSRealTimeDemo/85930bbd5e91c8b79a46b879ac4840bca3f8c669800ad67a1dfe4c2885bb1815.json) |
+   | us-west-2 (Oregon)      | [![Launch Stack](https://s3.amazonaws.com/cloudformation-examples/cloudformation-launch-stack.png)](https://console.aws.amazon.com/cloudformation/home?region=us-west-2#/stacks/new?stackName=IVSRealTimeDemo&templateURL=https://ivs-demos-cf-stacks-us-west-2.s3.us-west-2.amazonaws.com/IVSRealTimeDemo/4d66fbfe31070a065422a5210a6414e43b543c12d040214a7fa91e42b1fc5f6b.json) |
+
+   | **Europe**               |                                                                                                                                                                                                                                                                                                                                                                                            |
+   | ------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+   | eu-west-1 (Ireland)      | [![Launch Stack](https://s3.amazonaws.com/cloudformation-examples/cloudformation-launch-stack.png)](https://console.aws.amazon.com/cloudformation/home?region=eu-west-1#/stacks/new?stackName=IVSRealTimeDemo&templateURL=https://ivs-demos-cf-stacks-eu-west-1.s3.eu-west-1.amazonaws.com/IVSRealTimeDemo/00ff3335498aec6c0891b435b97e158ce3a566a49f4dd21b83e300e7d643afd5.json)          |
+   | eu-central-1 (Frankfurt) | [![Launch Stack](https://s3.amazonaws.com/cloudformation-examples/cloudformation-launch-stack.png)](https://console.aws.amazon.com/cloudformation/home?region=eu-central-1#/stacks/new?stackName=IVSRealTimeDemo&templateURL=https://ivs-demos-cf-stacks-eu-central-1.s3.eu-central-1.amazonaws.com/IVSRealTimeDemo/0f275aa871678cd2d9cc320e085de5def879e317230fc908b9dd166bfc1d2fd5.json) |
+
+   | **Asia Pacific**       |                                                                                                                                                                                                                                                                                                                                                                                                  |
+   | ---------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+   | ap-south-1 (Mumbai)    | [![Launch Stack](https://s3.amazonaws.com/cloudformation-examples/cloudformation-launch-stack.png)](https://console.aws.amazon.com/cloudformation/home?region=ap-south-1#/stacks/new?stackName=IVSRealTimeDemo&templateURL=https://ivs-demos-cf-stacks-ap-south-1.s3.ap-south-1.amazonaws.com/IVSRealTimeDemo/5b2f368e5f8eefddcf53fea2d6198a550280bd1deddfa4632987c8aca811325d.json)             |
+   | ap-northeast-1 (Tokyo) | [![Launch Stack](https://s3.amazonaws.com/cloudformation-examples/cloudformation-launch-stack.png)](https://console.aws.amazon.com/cloudformation/home?region=ap-northeast-1#/stacks/new?stackName=IVSRealTimeDemo&templateURL=https://ivs-demos-cf-stacks-ap-northeast-1.s3.ap-northeast-1.amazonaws.com/IVSRealTimeDemo/8a123e4bbce794213e21d172be3f01e0091a5d662bd26a58eb68434b72317b92.json) |
+   | ap-northeast-2 (Seoul) | [![Launch Stack](https://s3.amazonaws.com/cloudformation-examples/cloudformation-launch-stack.png)](https://console.aws.amazon.com/cloudformation/home?region=ap-northeast-2#/stacks/new?stackName=IVSRealTimeDemo&templateURL=https://ivs-demos-cf-stacks-ap-northeast-2.s3.ap-northeast-2.amazonaws.com/IVSRealTimeDemo/caf029e74fd5ae46dd2b86a0694c973723544919998e242bb356f8c61e321f3f.json) |
+
+2. Follow the steps on the **Create stack** page. You may optionally specify a different Stack name.
+3. After completing all steps, select **Submit** to launch and deploy the stack.
+
+### Use a one-click deploy backend with the client applications
+
+When the deployment successfully completes, save the following values in the **Outputs** tab to generate your `Authentication code`. You will need to enter this code when prompted by the mobile apps:
+- `domainName` (the first part of this is your `domainId`)
+- `secretUrl` (used to retrieve your `apiKey`)
+
+Open the `secretUrl` in your web browser and click the **Retrieve secret value** button in the **Secret value** section. Once the secrets are visible, copy the `apiKey` value.
+
+To generate your `Authentication code`, join the `domainId` and `apiKey` with a dash: `${domainId}-${apiKey}`.
+
+> For example, if your domainName is `d0abcdefghijk.cloudfront.net` and apiKey is `AbCDEFgHIJKLmnOPQrsTUV`, your authentication code is `d0abcdefghijk-AbCDEFgHIJKLmnOPQrsTUV`.
+
+On your mobile device, simply enter this value when prompted by the app.
+
+## Deploy from the command line
 
 1. If this is your first time deploying the backend stack, run the following command:
 
@@ -42,9 +79,9 @@ For configuration specifics, refer to the [AWS CLI User Guide](https://docs.aws.
 
 2. Press `y` when prompted to acknowledge and proceed with the deployment
 
-## Using the deployed backend with the client applications
+### Use the command line deployed backend with the client applications
 
-When the deployment successfully completes, copy the `⭐️ Customer ID` and `🔑 API key` values outputted in your terminal session. On your mobile device, simply enter these values when prompted by the app.
+When the deployment successfully completes, copy the `⭐️ Domain ID` and `🔑 API key` values outputted in your terminal session. On your mobile device, simply enter these values when prompted by the app.
 
 Alternatively, you may use the mobile app to scan the `🔎 Authentication QR code`. Doing so will automatically paste the customer ID and API key into the app and sign you in immediately.
 
