@@ -8,13 +8,16 @@ import {
 } from '../constants';
 import { createErrorResponse, createSuccessResponse } from '../utils';
 import { ddbSdk } from '../sdk';
-import { ListResponse } from '../types';
+import { ListResponse, RealTimeRecord } from '../types';
 
 export const handler: APIGatewayProxyHandlerV2 = async (event) => {
   const { queryStringParameters } = event;
+  const filters = queryStringParameters || {};
   const response: ListResponse = { stages: [] };
 
-  const filterKeys = Object.keys(queryStringParameters || {});
+  console.info('EVENT', JSON.stringify(event));
+
+  const filterKeys = Object.keys(filters);
   const restrictedFilterKey = filterKeys.find(
     (filterKey) => !ALLOWED_FILTER_ATTRIBUTES.includes(filterKey)
   );
@@ -27,13 +30,14 @@ export const handler: APIGatewayProxyHandlerV2 = async (event) => {
   }
 
   try {
-    const { Items } = await ddbSdk.getRealTimeRecords(
-      SUMMARY_ATTRIBUTES,
-      queryStringParameters
+    const { Items: RealTimeRecordItems = [] } = await ddbSdk.getRealTimeRecords(
+      { attributesToGet: SUMMARY_ATTRIBUTES, filters }
     );
 
-    if (Items?.length) {
-      const unmarshalledItems = Items.map((item) => unmarshall(item));
+    if (RealTimeRecordItems.length) {
+      const unmarshalledItems = RealTimeRecordItems.map(
+        (item) => unmarshall(item) as RealTimeRecord
+      );
       response.stages = unmarshalledItems.sort((item1, item2) => {
         if (item1.createdAt > item2.createdAt) return 1;
         if (item1.createdAt < item2.createdAt) return -1;
@@ -43,6 +47,8 @@ export const handler: APIGatewayProxyHandlerV2 = async (event) => {
   } catch (error) {
     return createErrorResponse({ error });
   }
+
+  console.info('RESPONSE', JSON.stringify(response));
 
   return createSuccessResponse({ body: response });
 };

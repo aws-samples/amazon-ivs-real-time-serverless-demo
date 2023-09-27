@@ -3,19 +3,18 @@ import {
   aws_lambda_nodejs as lambda
 } from 'aws-cdk-lib';
 import { Construct } from 'constructs';
-import { LambdaIntegrationOptions } from 'aws-cdk-lib/aws-apigateway/lib/integrations';
 
 import { getDefaultLambdaProps } from '../utils';
 
-type FunctionProps = lambda.NodejsFunctionProps & {
-  entryFunctionName: string;
-};
-
 interface IntegratedProxyLambdaProps {
   api: apigw.RestApi;
-  handler: FunctionProps;
-  method: string;
-  resourcePaths?: string[];
+  handler: lambda.NodejsFunctionProps & { entryFunctionName: string };
+  resources?: { method: string; path?: string }[];
+  requestValidation?: {
+    requestValidator: apigw.RequestValidator;
+    schema?: apigw.JsonSchema;
+    requestParameters?: { [param: string]: boolean };
+  };
 }
 
 export default class IntegratedProxyLambda extends Construct {
@@ -24,36 +23,41 @@ export default class IntegratedProxyLambda extends Construct {
   constructor(scope: Construct, id: string, props: IntegratedProxyLambdaProps) {
     super(scope, id);
 
-    const {
-      api,
-      method,
-      resourcePaths,
-      handler: { entryFunctionName, ...handlerProps }
-    } = props;
-
-    const lambdaIntegrationOptions: LambdaIntegrationOptions = {
-      proxy: true,
-      allowTestInvoke: false
-    };
+    const { api, handler, resources = [], requestValidation } = props;
+    const { entryFunctionName, ...handlerProps } = handler;
 
     this.lambdaFunction = new lambda.NodejsFunction(
       this,
       'IntegratedProxyLambda',
-      {
-        ...getDefaultLambdaProps(entryFunctionName),
-        ...handlerProps
-      }
+      { ...getDefaultLambdaProps(entryFunctionName), ...handlerProps }
     );
-    const lambdaIntegration = new apigw.LambdaIntegration(
-      this.lambdaFunction,
-      lambdaIntegrationOptions
-    );
+    const lambdaIntegration = new apigw.LambdaIntegration(this.lambdaFunction, {
+      proxy: true,
+      allowTestInvoke: false
+    });
 
-    const resource =
-      resourcePaths?.reduce<apigw.IResource>(
-        (res, path) => res.addResource(path),
-        api.root
-      ) || api.root;
-    resource.addMethod(method, lambdaIntegration, { apiKeyRequired: true });
+    for (let { method, path = '/' } of resources) {
+      const resource = path
+        .split('/')
+        .filter((part) => part)
+        .reduce<apigw.IResource>((res, pathPart) => {
+          return res.getResource(pathPart) || res.addResource(pathPart);
+        }, api.root);
+
+      const requestModels: { [param: string]: apigw.IModel } = {};
+      if (requestValidation?.schema) {
+        requestModels['application/json'] = api.addModel(
+          `Model-${method}-${path}`,
+          { schema: requestValidation.schema }
+        );
+      }
+
+      resource.addMethod(method, lambdaIntegration, {
+        apiKeyRequired: true,
+        requestModels,
+        requestParameters: requestValidation?.requestParameters,
+        requestValidator: requestValidation?.requestValidator
+      });
+    }
   }
 }

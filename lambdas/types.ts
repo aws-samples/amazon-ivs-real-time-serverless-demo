@@ -4,6 +4,12 @@ import {
 } from '@aws-sdk/client-ivschat';
 import { ParticipantToken } from '@aws-sdk/client-ivs-realtime';
 
+export enum StageConfig {
+  STATUS = 'STATUS',
+  TYPE = 'TYPE',
+  MODE = 'MODE'
+}
+
 export enum StageStatus {
   IDLE = 'IDLE',
   ACTIVE = 'ACTIVE'
@@ -20,12 +26,6 @@ export enum StageMode {
   PK = 'PK'
 }
 
-export enum StageConfig {
-  STATUS = 'STATUS',
-  MODE = 'MODE',
-  TYPE = 'TYPE'
-}
-
 export enum UpdateType {
   MODE = 'MODE',
   SEATS = 'SEATS'
@@ -39,6 +39,7 @@ export interface RealTimeRecord {
   hostId: string; // partition key
   hostAttributes: Record<string, string>;
   createdAt: string;
+  createdFor?: string;
   stageArn: string;
   chatRoomArn: string;
   type: StageType;
@@ -58,7 +59,6 @@ export interface VotesRecord {
 /**
  * Create Types
  */
-
 export interface CreateEventBody {
   cid: string;
   hostAttributes?: Record<string, string>;
@@ -67,14 +67,14 @@ export interface CreateEventBody {
 }
 
 export interface CreateResponse {
-  hostParticipantToken?: ParticipantToken;
+  hostParticipantToken: ParticipantToken;
   region: string;
+  createdFor?: string;
 }
 
 /**
  * Join Types
  */
-
 export interface JoinEventBody {
   hostId: string;
   userId: string;
@@ -83,7 +83,7 @@ export interface JoinEventBody {
 
 export interface JoinResponse extends ParticipantToken {
   region: string;
-  metadata: Record<string, any>;
+  metadata: Record<string, unknown>;
   hostAttributes?: Record<string, string>;
 }
 
@@ -108,7 +108,6 @@ export interface CreateChatTokenBody {
 /**
  * Delete Types
  */
-
 export interface DeleteEventBody {
   hostId: string;
 }
@@ -116,7 +115,6 @@ export interface DeleteEventBody {
 /**
  * Disconnect Types
  */
-
 export interface DisconnectEventBody {
   hostId: string;
   userId: string;
@@ -126,7 +124,6 @@ export interface DisconnectEventBody {
 /**
  * Update Types
  */
-
 export interface UpdateEventBody {
   hostId: string;
   userId?: string;
@@ -136,7 +133,6 @@ export interface UpdateEventBody {
 /**
  * CastVote Types
  */
-
 export interface CastVoteBody {
   hostId: string;
   vote: string;

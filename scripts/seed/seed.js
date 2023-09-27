@@ -1,18 +1,11 @@
-const { DescribeStacksCommand } = require('@aws-sdk/client-cloudformation');
-const { GetSecretValueCommand } = require('@aws-sdk/client-secrets-manager');
+const { parseArgs } = require('util');
 const { writeFileSync } = require('fs');
 
-const {
-  chooseRandomDistinct,
-  getStackName,
-  retryWithConstantBackoff
-} = require('../utils');
-const { cloudFormationClient, secretsManagerClient } = require('../clients');
+const { getCustomerCode, retryWithConstantBackoff } = require('../utils');
 const fruits = require('./fruits.json');
-const { parseArgs } = require('util');
 
-const MAX_COUNT = 10;
-const commonHostAttributes = {
+const MAX_SEED_COUNT = 10;
+const COMMON_HOST_ATTRIBUTES = {
   avatarColLeft: '#eb5f07',
   avatarColRight: '#d91515',
   avatarColBottom: '#ff9900'
@@ -26,87 +19,70 @@ const { values: args } = parseArgs({
   strict: false
 });
 
-const getStackOutputs = async () => {
-  const stackName = getStackName();
-  const { Stacks } = await cloudFormationClient.send(
-    new DescribeStacksCommand({ StackName: stackName })
-  );
-  const stack = Stacks?.[0];
-  const outputs = stack?.Outputs.reduce(
-    (acc, output) => ({
-      ...acc,
-      [output.OutputKey]: output.OutputValue
-    }),
-    {}
-  );
-
-  return outputs;
-};
-
-const getApiKey = async (secretName) => {
-  if (!secretName) {
-    return;
+function chooseRandomDistinctItems(srcArray, count) {
+  if (srcArray.length < count) {
+    throw new Error(
+      `Cannot choose ${count} distinct items from array with length ${srcArray.length}.`
+    );
   }
 
-  const { SecretString } = await secretsManagerClient.send(
-    new GetSecretValueCommand({ SecretId: secretName })
-  );
+  const copy = srcArray.slice(0);
+  const items = [];
 
-  if (SecretString) {
-    const secretValue = JSON.parse(SecretString);
-
-    return secretValue.apiKey;
+  for (let i = 0; i < count; i++) {
+    const randomIndex = Math.floor(Math.random() * copy.length);
+    const randomItem = copy[randomIndex];
+    items.push(randomItem);
+    copy.splice(randomIndex, 1);
   }
-};
 
-const createDemoItem = async (cid, apiKey, hostId) => {
-  const url = `https://${cid}.cloudfront.net/create`;
-  const hostAttributes = { ...commonHostAttributes, username: hostId };
+  return items;
+}
+
+async function createDemoItem(cid, apiKey, hostId) {
   const { type } = args;
+  const hostAttributes = { ...COMMON_HOST_ATTRIBUTES, username: hostId };
 
-  const result = await fetch(url, {
-    headers: { 'x-api-key': apiKey },
+  const result = await fetch(`https://${cid}.cloudfront.net/create/demo`, {
     method: 'POST',
+    headers: { 'x-api-key': apiKey },
     body: JSON.stringify({ cid, hostId, type, hostAttributes })
   });
   const { hostParticipantToken } = await result.json();
 
   return hostParticipantToken.token;
-};
+}
 
-const seed = async () => {
-  const { domainName, secretName } = await getStackOutputs();
-  const cid = domainName?.split('.')[0];
-  const apiKey = await getApiKey(secretName);
+async function seed() {
+  const { cid, apiKey } = await getCustomerCode();
+
+  const demoItems = {};
   const count = Number(args.count);
-
-  if (!cid) {
-    throw new Error('Failed to retrieve the customer ID');
-  }
-
-  if (!apiKey) {
-    throw new Error('Failed to retrieve the API key');
-  }
-
-  const randomDemoIds = chooseRandomDistinct(fruits, count);
-  const results = {};
-  const boundedCount = Math.min(Math.max(count, 0), MAX_COUNT);
+  const boundedCount = Math.min(Math.max(count, 0), MAX_SEED_COUNT);
+  const randomDemoIds = chooseRandomDistinctItems(fruits, boundedCount);
 
   for (let i = 0; i < boundedCount; i++) {
     const demoId = randomDemoIds[i];
     const demoIdCapitalized = demoId.charAt(0).toUpperCase() + demoId.slice(1);
     const hostId = `Demo${demoIdCapitalized}${i}`;
 
-    results[hostId] = await retryWithConstantBackoff({
-      promiseFn: () => createDemoItem(cid, apiKey, hostId)
-    });
+    demoItems[hostId] = await retryWithConstantBackoff(() =>
+      createDemoItem(cid, apiKey, hostId)
+    );
   }
 
-  const outputFilename = 'scripts/seed/output.json';
-  writeFileSync(outputFilename, JSON.stringify(results, null, 2));
+  randomDemoIds.map((demoId, i) => {
+    const demoIdCapitalized = demoId.charAt(0).toUpperCase() + demoId.slice(1);
+    const hostId = `Demo${demoIdCapitalized}${i}`;
 
-  console.info(results);
+    return createDemoItem(cid, apiKey, hostId);
+  });
+
+  const outputFilename = 'scripts/seed/output.json';
+  writeFileSync(outputFilename, JSON.stringify(demoItems, null, 2));
+
+  console.info(demoItems);
   console.info('\nOutput:', outputFilename);
-};
+}
 
 seed();

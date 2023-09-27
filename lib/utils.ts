@@ -1,7 +1,9 @@
 import {
+  aws_dynamodb as dynamodb,
   aws_lambda_nodejs as lambda,
   aws_logs as logs,
-  Duration
+  Duration,
+  RemovalPolicy
 } from 'aws-cdk-lib';
 import { Runtime } from 'aws-cdk-lib/aws-lambda';
 import { join } from 'path';
@@ -22,9 +24,18 @@ export const getDefaultLambdaProps = (
     externalModules: [],
     minify: true
   },
+  memorySize: 256,
   runtime: Runtime.NODEJS_18_X,
   timeout: Duration.minutes(1),
   maxEventAge: Duration.minutes(1),
-  logRetention: logs.RetentionDays.ONE_YEAR,
+  logRetention: logs.RetentionDays.THREE_MONTHS,
   ...(entryFunctionName && { entry: getLambdaEntryPath(entryFunctionName) })
+});
+
+export const getDefaultTableProps = (
+  partitionKey: dynamodb.Attribute
+): dynamodb.TableProps => ({
+  partitionKey,
+  removalPolicy: RemovalPolicy.DESTROY,
+  billingMode: dynamodb.BillingMode.PAY_PER_REQUEST
 });

@@ -8,27 +8,24 @@ import { getElapsedTimeInSeconds } from '../utils';
 import { IDLE_TIME_UNTIL_STALE_IN_SECONDS } from '../constants';
 import { RealTimeRecord, StageStatus } from '../types';
 
-const distributionDomainName = process.env.DISTRIBUTION_DOMAIN_NAME;
+const { DISTRIBUTION_DOMAIN_NAME: distributionDomainName } =
+  process.env as Record<string, string>;
+const [cid] = distributionDomainName.split('.');
 
 export const handler: ScheduledHandler = async () => {
-  const cid = distributionDomainName?.split('.')[0];
-
-  if (!cid) {
-    console.error(new Error('Missing customer ID from environment'));
-    return;
-  }
-
   try {
     // Get all item records and stage summaries for this customer
     const [{ Items }, stageSummaries, roomSummaries] = await Promise.all([
-      ddbSdk.getRealTimeRecords([
-        'hostId',
-        'status',
-        'stageArn',
-        'chatRoomArn',
-        'createdAt',
-        'lastStatusUpdatedAt'
-      ]),
+      ddbSdk.getRealTimeRecords({
+        attributesToGet: [
+          'hostId',
+          'status',
+          'stageArn',
+          'chatRoomArn',
+          'createdAt',
+          'lastStatusUpdatedAt'
+        ]
+      }),
       realTimeSdk.getStageSummaries(cid),
       chatSdk.getRoomSummaries(cid)
     ]);
@@ -127,12 +124,15 @@ export const handler: ScheduledHandler = async () => {
         getElapsedTimeInSeconds(lastStatusUpdatedAt as string) >
           IDLE_TIME_UNTIL_STALE_IN_SECONDS
       ) {
+        console.info('Deleting IDLE item', JSON.stringify(item));
+
         try {
+          // Delete the record references to the stage/room resources first
+          await ddbSdk.deleteRealTimeRecord(hostId as string);
+          await ddbSdk.deleteVotesRecord(hostId as string);
           await Promise.all([
-            ddbSdk.deleteRealTimeRecord(hostId as string),
-            ddbSdk.deleteVotesRecord(hostId as string),
             chatSdk.deleteRoom(chatRoomArn as string),
-            realTimeSdk.deleteStage(stageArn as string),
+            realTimeSdk.deleteStage(stageArn as string)
           ]);
         } catch (error) {
           console.error(error);

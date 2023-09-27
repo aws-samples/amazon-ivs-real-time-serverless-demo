@@ -274,6 +274,13 @@
 						"{{cid}}",
 						"cloudfront",
 						"net"
+					],
+					"query": [
+						{
+							"key": "status",
+							"value": "active",
+							"disabled": true
+						}
 					]
 				}
 			},

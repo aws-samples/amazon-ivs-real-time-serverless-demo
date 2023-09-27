@@ -18,21 +18,26 @@ import {
   VotesRecord
 } from '../types';
 
-export const realTimeTableName = process.env.REAL_TIME_TABLE_NAME!;
-export const votesTableName = process.env.VOTES_TABLE_NAME!;
+export const {
+  REAL_TIME_TABLE_NAME: realTimeTableName,
+  VOTES_TABLE_NAME: votesTableName,
+  CREATED_FOR_REALTIME_INDEX_NAME: createdForRealTimeIndexName
+} = process.env as Record<string, string>;
 
 export const createRealTimeRecord = ({
   hostId,
-  roomArn,
   stageArn,
+  roomArn,
   type,
+  createdFor,
   hostParticipantId,
   hostAttributes = {}
 }: {
   hostId: string;
-  roomArn: string;
   stageArn: string;
+  roomArn: string;
   type: StageType;
+  createdFor?: string;
   hostParticipantId?: string;
   hostAttributes?: Record<string, string>;
 }) => {
@@ -47,14 +52,15 @@ export const createRealTimeRecord = ({
   const record: RealTimeRecord = {
     hostId,
     hostAttributes,
-    seats,
-    type: type.toUpperCase() as StageType,
-    createdAt: now,
     stageArn: stageArn,
     chatRoomArn: roomArn,
+    createdFor,
+    createdAt: now,
     lastStatusUpdatedAt: now,
-    status: StageStatus.IDLE,
-    mode: StageMode.NONE
+    seats,
+    mode: StageMode.NONE,
+    type: type.toUpperCase() as StageType,
+    status: StageStatus.IDLE
   };
 
   return ddbDocClient.send(
@@ -73,26 +79,38 @@ export const getRealTimeRecord = (hostId: string) =>
     })
   );
 
-export const getRealTimeRecords = (
-  attributesToGet: string[] = [],
-  filters: { [key: string]: any } = {}
-) => {
+export const getRealTimeRecords = ({
+  attributesToGet = [],
+  filters = {}
+}: {
+  attributesToGet?: string[];
+  filters?: { [key: string]: string | undefined };
+} = {}) => {
   let expressionAttributeNames: Record<string, string> = {};
   let expressionAttributeValues: Record<string, AttributeValue> = {};
 
+  // Filters
   const filterExpressions: string[] = [];
   for (let filterKey in filters) {
-    let filterValue = filters[filterKey];
-    if ((<any>Object).values(StageConfig).includes(filterKey.toUpperCase()))
-      filterValue = filterValue.toUpperCase();
+    // StageConfig filter values must be transformed into the stored format (i.e. uppercase)
+    const stageConfigFilterRegex = new RegExp(filterKey, 'i');
+    const isStageConfigFilterValue = !!Object.values(StageConfig).find(
+      (value) => value.match(stageConfigFilterRegex)
+    );
+    const filterValue = isStageConfigFilterValue
+      ? filters[filterKey]?.toUpperCase()
+      : filters[filterKey];
 
-    filterExpressions.push(`#${filterKey} = :${filterValue}`);
-    expressionAttributeNames[`#${filterKey}`] = filterKey;
-    expressionAttributeValues[`:${filterValue}`] = convertToAttr(filterValue);
+    if (filterValue) {
+      filterExpressions.push(`#${filterKey} = :${filterValue}`);
+      expressionAttributeNames[`#${filterKey}`] = filterKey;
+      expressionAttributeValues[`:${filterValue}`] = convertToAttr(filterValue);
+    }
   }
   let filterExpression = filterExpressions.join(' AND ');
 
-  let projectionExpression = attributesToGet
+  // Projections
+  const projectionExpression = attributesToGet
     .map((attr) => `#${attr}`)
     .join(',');
   attributesToGet.forEach(
@@ -102,6 +120,8 @@ export const getRealTimeRecords = (
   return ddbDocClient.send(
     new ScanCommand({
       TableName: realTimeTableName,
+      IndexName:
+        'createdFor' in filters ? createdForRealTimeIndexName : undefined,
       FilterExpression: filterExpression.length ? filterExpression : undefined,
       ProjectionExpression: projectionExpression.length
         ? projectionExpression

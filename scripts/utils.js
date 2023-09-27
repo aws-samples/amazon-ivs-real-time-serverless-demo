@@ -1,48 +1,87 @@
+const { DescribeStacksCommand } = require('@aws-sdk/client-cloudformation');
 const { GetCallerIdentityCommand } = require('@aws-sdk/client-sts');
+const { GetSecretValueCommand } = require('@aws-sdk/client-secrets-manager');
 const { parseArgs } = require('util');
 
-const { stsClient } = require('./clients');
+const {
+  cloudFormationClient,
+  secretsManagerClient,
+  stsClient
+} = require('./clients');
 
 const { values: args } = parseArgs({
   options: { stackName: { type: 'string' } },
   strict: false
 });
 
-const getStackName = () => {
+async function getAwsConfig() {
+  const getCallerIdentityCommand = new GetCallerIdentityCommand({});
+
+  const [{ Account }, region] = await Promise.all([
+    stsClient.send(getCallerIdentityCommand),
+    stsClient.config.region()
+  ]);
+
+  return { account: Account, region };
+}
+
+function getStackName() {
   return args.stackName;
-};
+}
 
-const getAwsConfig = async () => {
-  const { Account: account } = await stsClient.send(
-    new GetCallerIdentityCommand({})
-  );
-  const region = await stsClient.config.region();
-
-  return { account, region };
-};
-
-const chooseRandomDistinct = (array, count) => {
-  if (!array.length || !count) return [];
-
-  const boundedCount = Math.min(Math.max(count, 0), array.length);
-  const copy = array.slice(0);
-  const items = [];
-
-  for (let i = 0; i < boundedCount; i++) {
-    const randomIndex = Math.floor(Math.random() * copy.length);
-    const randomItem = copy[randomIndex];
-    items.push(randomItem);
-    copy.splice(randomIndex, 1);
+async function getApiKey(secretName) {
+  if (!secretName) {
+    return;
   }
 
-  return items;
-};
+  const { SecretString } = await secretsManagerClient.send(
+    new GetSecretValueCommand({ SecretId: secretName })
+  );
 
-const retryWithConstantBackoff = ({
+  if (SecretString) {
+    const secretValue = JSON.parse(SecretString);
+
+    return secretValue.apiKey;
+  }
+}
+
+async function getStackOutputs() {
+  const stackName = getStackName();
+  const { Stacks } = await cloudFormationClient.send(
+    new DescribeStacksCommand({ StackName: stackName })
+  );
+  const [stack] = Stacks;
+  const outputs = stack.Outputs.reduce(
+    (acc, output) => ({
+      ...acc,
+      [output.OutputKey]: output.OutputValue
+    }),
+    {}
+  );
+
+  return outputs;
+}
+
+async function getCustomerCode() {
+  const { domainName, secretName } = await getStackOutputs();
+
+  const [cid] = domainName?.split('.');
+  if (!cid) {
+    throw new Error('Failed to retrieve the customer ID');
+  }
+
+  const apiKey = await getApiKey(secretName);
+  if (!apiKey) {
+    throw new Error('Failed to retrieve the API key');
+  }
+
+  return { cid, apiKey };
+}
+
+const retryWithConstantBackoff = (
   promiseFn,
-  maxRetries = 5,
-  delay = 200
-}) => {
+  { maxRetries = 5, delay = 200 } = {}
+) => {
   const waitFor = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
   const retry = async (retries) => {
@@ -71,8 +110,10 @@ const retryWithConstantBackoff = ({
 };
 
 module.exports = {
-  chooseRandomDistinct,
+  getApiKey,
   getAwsConfig,
+  getCustomerCode,
   getStackName,
+  getStackOutputs,
   retryWithConstantBackoff
 };

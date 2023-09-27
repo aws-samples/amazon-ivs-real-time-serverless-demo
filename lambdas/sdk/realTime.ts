@@ -19,17 +19,20 @@ import {
 export const createStage = async ({
   cid,
   hostId,
-  hostAttributes
+  hostAttributes,
+  tags
 }: {
   cid: string;
   hostId: string;
   hostAttributes?: Record<string, string>;
+  tags?: Record<string, string>;
 }): Promise<{ stage: Stage; hostParticipantToken: ParticipantToken }> => {
   const { stage, participantTokens } = await ivsRealTimeClient.send(
     new CreateStageCommand({
       name: `${cid}-${hostId}-Stage`,
       tags: {
         ...RESOURCE_TAGS,
+        ...tags,
         cid,
         createdAt: new Date().toISOString()
       },

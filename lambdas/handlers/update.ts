@@ -18,22 +18,16 @@ import {
 } from '../types';
 import { updateMode, updateSeats } from '../helpers';
 
+const stageModes = Object.values(StageMode);
+
 export const handler: APIGatewayProxyHandlerV2 = async (event) => {
   const { body = '{}', pathParameters } = event;
   const { hostId, userId, ...data }: UpdateEventBody = JSON.parse(body);
-  const [updateType] = pathParameters?.proxy?.split('/') as string[]; // mode OR seats
+  const updateType = pathParameters?.proxy?.split('/')[0]; // mode OR seats
   const isModeUpdate = !!(updateType?.toUpperCase() === UpdateType.MODE);
   const isSeatsUpdate = !!(updateType?.toUpperCase() === UpdateType.SEATS);
-  const stageModes = Object.values(StageMode);
 
-  // Check that hostId was provided
-  if (!hostId) {
-    return createErrorResponse({
-      code: 400,
-      name: BAD_INPUT_EXCEPTION,
-      message: 'Missing host ID'
-    });
-  }
+  console.info('EVENT', JSON.stringify(event));
 
   // Check that a recognized update type was passed into the {proxy+} path (i.e. "mode" or "seats")
   if (!isModeUpdate && !isSeatsUpdate) {
@@ -78,25 +72,27 @@ export const handler: APIGatewayProxyHandlerV2 = async (event) => {
       });
     }
 
-    const record = unmarshall(RealTimeRecordItem) as RealTimeRecord;
+    const realTimeRecord = unmarshall(RealTimeRecordItem) as RealTimeRecord;
 
     if (
-      (isModeUpdate && record.type === StageType.AUDIO) ||
-      (isSeatsUpdate && record.type === StageType.VIDEO)
+      (isModeUpdate && realTimeRecord.type === StageType.AUDIO) ||
+      (isSeatsUpdate && realTimeRecord.type === StageType.VIDEO)
     ) {
       return createErrorResponse({
         code: 400,
         name: INVALID_STAGE_UPDATE_EXCEPTION,
-        message: `Cannot update the ${updateType} for a(n) ${record.type} stage type`
+        message: `Cannot update the ${updateType} for a(n) ${realTimeRecord.type} stage type`
       });
     }
 
+    console.info(`Updating ${updateType}`, JSON.stringify(realTimeRecord));
+
     if (isModeUpdate) {
-      await updateMode({ mode: data.mode, record, userId });
+      await updateMode({ mode: data.mode, record: realTimeRecord, userId });
     }
 
     if (isSeatsUpdate) {
-      await updateSeats({ seats: data.seats, record, userId });
+      await updateSeats({ seats: data.seats, record: realTimeRecord, userId });
     }
   } catch (error) {
     return createErrorResponse({ error });

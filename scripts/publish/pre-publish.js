@@ -22,7 +22,7 @@ const { values: args } = parseArgs({
   strict: false
 });
 
-const prepare = async () => {
+async function runPrePublish() {
   const { account, region } = await getAwsConfig();
   const fileAssetsBucketName = `${args.fileAssetsBucketNamePrefix}-${region}`;
   const fileAssetPublishingRoleName = `${fileAssetsBucketName}-file-publishing-role`;
@@ -167,12 +167,15 @@ const prepare = async () => {
       fileAssetPublishingConfig
     ).reduce((str, [key, value]) => (str += `${key}=${value}\n`), '');
 
-    writeFileSync(`publish.${region}.env`, fileAssetPublishingConfigEnvStr);
+    writeFileSync(
+      `scripts/publish/publish.${region}.env`,
+      fileAssetPublishingConfigEnvStr
+    );
   } else {
     throw new Error(
       'Failed to create or retrieve a file asset publishing role ARN.'
     );
   }
-};
+}
 
-prepare();
+runPrePublish();

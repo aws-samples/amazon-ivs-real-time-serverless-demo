@@ -6,7 +6,7 @@ const DEFAULT_RESPONSE_HEADERS = {
   'Content-Type': 'application/json'
 };
 
-export class ResponseError extends Error {
+class ResponseError extends Error {
   public readonly code;
 
   constructor(
@@ -41,7 +41,7 @@ export const createErrorResponse = ({
   code?: number;
   name?: string;
   message?: string;
-  error?: any;
+  error?: unknown;
 } = {}): APIGatewayProxyResultV2 => {
   const responseError = error || new ResponseError(code, name, message);
   console.error(responseError); // log the response error and data to CloudWatch
@@ -64,14 +64,6 @@ export const getElapsedTimeInSeconds = (fromDate: string) => {
 
   return elapsedTimeSeconds;
 };
-
-export const isFulfilled = <T>(
-  input: PromiseSettledResult<T>
-): input is PromiseFulfilledResult<T> => input.status === 'fulfilled';
-
-export const isRejected = (
-  input: PromiseSettledResult<unknown>
-): input is PromiseRejectedResult => input.status === 'rejected';
 
 export const exhaustiveSwitchGuard = (value: never): never => {
   throw new Error(

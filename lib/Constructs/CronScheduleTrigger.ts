@@ -93,8 +93,9 @@ export class CronScheduleTrigger extends Construct implements IEventSource {
       maxConcurrency: 1
     }).iterator(waitThenInvoke);
 
+    const loopChain = createLoopItems.next(loop);
     const stateMachine = new stepFunctions.StateMachine(this, 'StateMachine', {
-      definition: createLoopItems.next(loop),
+      definitionBody: stepFunctions.DefinitionBody.fromChainable(loopChain),
       stateMachineName: `${stackName}-${scopedId}-StateMachine`,
       stateMachineType: stepFunctions.StateMachineType.EXPRESS,
       timeout: Duration.seconds(90)

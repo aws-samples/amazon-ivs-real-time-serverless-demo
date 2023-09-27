@@ -3,10 +3,9 @@
 node_modules
 dist
 temp_out.json
-scripts/**/output.*json
-publish.*env
-!jest.config.js
-!.prettierrc.js
+scripts/**/output.json
+scripts/**/publish.*.env
+scripts/**/launch.*.json
 !scripts/**/*.js
 
 # CDK asset staging directory

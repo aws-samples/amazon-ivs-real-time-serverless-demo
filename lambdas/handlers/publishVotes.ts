@@ -19,10 +19,12 @@ export const handler: DynamoDBStreamHandler = async (event) => {
 
   switch (eventName) {
     case 'INSERT': {
+      console.info('VOTING SESSION STARTED', JSON.stringify(newImage));
       await sendVoteEvent(newImage as VotesRecord, 'stage:VOTE_START');
       break;
     }
     case 'MODIFY': {
+      console.info('VOTES CASTED', JSON.stringify(newImage));
       await sendVoteEvent(newImage as VotesRecord, 'stage:VOTE');
       break;
     }
@@ -33,6 +35,7 @@ export const handler: DynamoDBStreamHandler = async (event) => {
         );
 
         if (RealTimeRecordItem) {
+          console.info('VOTING SESSION ENDED', JSON.stringify(oldImage));
           await sendVoteEvent(oldImage as VotesRecord, 'stage:VOTE_END');
         }
       } catch (error) {
@@ -42,6 +45,7 @@ export const handler: DynamoDBStreamHandler = async (event) => {
          * try to send the VOTE_END event but there is no guarantee that it will
          * be delivered if the chat room is queued for deletion.
          */
+        console.info('VOTING SESSION ENDED', JSON.stringify(oldImage));
         await sendVoteEvent(oldImage as VotesRecord, 'stage:VOTE_END');
       }
 

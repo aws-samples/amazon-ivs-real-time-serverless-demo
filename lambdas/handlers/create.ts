@@ -1,102 +1,75 @@
 import { APIGatewayProxyHandlerV2 } from 'aws-lambda';
-import { ParticipantToken, Stage } from '@aws-sdk/client-ivs-realtime';
 import { unmarshall } from '@aws-sdk/util-dynamodb';
 
-import { BAD_INPUT_EXCEPTION, CREATE_RESOURCE_EXCEPTION } from '../constants';
 import { chatSdk, ddbSdk, realTimeSdk } from '../sdk';
-import {
-  createErrorResponse,
-  createSuccessResponse,
-  isFulfilled
-} from '../utils';
-import {
-  CreateEventBody,
-  CreateResponse,
-  RealTimeRecord,
-  Room
-} from '../types';
+import { createErrorResponse, createSuccessResponse } from '../utils';
+import { CreateEventBody, CreateResponse, RealTimeRecord } from '../types';
+
+const region = process.env.AWS_REGION as string;
 
 export const handler: APIGatewayProxyHandlerV2 = async (event) => {
-  const { cid, hostId, hostAttributes, type }: CreateEventBody = JSON.parse(
-    event.body || '{}'
-  );
-  const response: CreateResponse = { region: process.env.AWS_REGION! };
+  const { body = '{}', pathParameters } = event;
+  const { cid, hostId, hostAttributes, type }: CreateEventBody =
+    JSON.parse(body);
+  let response: CreateResponse;
 
-  // Check required input
-  if (!cid || !hostId || !type) {
-    const missingInputs = [];
-    if (!cid) missingInputs.push('cid');
-    if (!hostId) missingInputs.push('hostId');
-    if (!type) missingInputs.push('type');
-
-    return createErrorResponse({
-      code: 400,
-      name: BAD_INPUT_EXCEPTION,
-      message: `Missing required input data: ${missingInputs.join(', ')}`
-    });
-  }
+  console.info('EVENT', JSON.stringify(event));
 
   try {
-    let room: Room | undefined;
-    let stage: Stage | undefined;
-    let hostParticipantToken: ParticipantToken | undefined;
-
     const { Item: RealTimeRecordItem } = await ddbSdk.getRealTimeRecord(hostId);
 
-    // Return a host participant token if a RealTime record already exists for this hostId
     if (RealTimeRecordItem) {
-      const { stageArn } = unmarshall(RealTimeRecordItem) as RealTimeRecord;
-      response.hostParticipantToken = await realTimeSdk.createParticipantToken({
+      // Return a host participant token if a RealTime record already exists for this hostId
+      const realTimeRecord = unmarshall(RealTimeRecordItem) as RealTimeRecord;
+      const { stageArn, createdFor } = realTimeRecord;
+
+      console.info(
+        `Record EXISTS for host "${hostId}" - creating host participant token`,
+        JSON.stringify(realTimeRecord)
+      );
+
+      const hostParticipantToken = await realTimeSdk.createParticipantToken({
         stageArn,
         userId: hostId,
         attributes: hostAttributes
       });
 
-      return createSuccessResponse({ body: response });
-    }
+      response = { region, createdFor, hostParticipantToken };
+    } else {
+      console.info(
+        `Record DOES NOT EXIST for host "${hostId}" - creating new resources`
+      );
 
-    // Create the Stage and Room resources
-    const [createStageResult, createRoomResult] = await Promise.allSettled([
-      realTimeSdk.createStage({ cid, hostId, hostAttributes }),
-      chatSdk.createRoom({ cid, hostId })
-    ]);
+      // Create new Stage and Room resources
+      const createdFor = pathParameters?.proxy?.split('/')[0];
+      const tags = createdFor ? { createdFor } : undefined;
+      const [createStageResult, createRoomResult] = await Promise.all([
+        realTimeSdk.createStage({ cid, hostId, hostAttributes, tags }),
+        chatSdk.createRoom({ cid, hostId, tags })
+      ]);
 
-    const failedResources: { [key: string]: any } = {};
-
-    // Handle Stage creation result
-    if (isFulfilled(createStageResult)) {
-      ({ stage, hostParticipantToken } = createStageResult.value);
-    } else failedResources.stage = createStageResult.reason;
-
-    // Handle Room creation result
-    if (isFulfilled(createRoomResult)) {
-      room = createRoomResult.value;
-    } else failedResources.room = createRoomResult.reason;
-
-    // Return an error if any of the resources failed to create
-    if (!stage || !room) {
-      return createErrorResponse({
-        name: CREATE_RESOURCE_EXCEPTION,
-        message: `Failed to create resources: ${JSON.stringify(
-          failedResources
-        )}`
+      // Add a new record to the RealTime DDB Table
+      await ddbSdk.createRealTimeRecord({
+        type,
+        hostId,
+        createdFor,
+        hostAttributes,
+        roomArn: createRoomResult.arn as string,
+        stageArn: createStageResult.stage.arn as string,
+        hostParticipantId: createStageResult.hostParticipantToken.participantId
       });
+
+      response = {
+        region,
+        createdFor,
+        hostParticipantToken: createStageResult.hostParticipantToken
+      };
     }
-
-    // Add a record to the RealTime DDB Table
-    await ddbSdk.createRealTimeRecord({
-      hostId,
-      hostAttributes,
-      hostParticipantId: hostParticipantToken?.participantId,
-      roomArn: room.arn!,
-      stageArn: stage.arn!,
-      type
-    });
-
-    response.hostParticipantToken = hostParticipantToken;
   } catch (error) {
     return createErrorResponse({ error });
   }
+
+  console.info('RESPONSE', JSON.stringify(response));
 
   return createSuccessResponse({ code: 201, body: response });
 };

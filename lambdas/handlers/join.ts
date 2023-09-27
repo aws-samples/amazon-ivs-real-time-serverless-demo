@@ -1,7 +1,7 @@
 import { APIGatewayProxyHandlerV2 } from 'aws-lambda';
 import { unmarshall } from '@aws-sdk/util-dynamodb';
 
-import { BAD_INPUT_EXCEPTION, USER_NOT_FOUND_EXCEPTION } from '../constants';
+import { USER_NOT_FOUND_EXCEPTION } from '../constants';
 import { chatSdk, ddbSdk, realTimeSdk } from '../sdk';
 import { createErrorResponse, createSuccessResponse } from '../utils';
 import {
@@ -12,27 +12,14 @@ import {
   StageType
 } from '../types';
 
+const region = process.env.AWS_REGION as string;
+
 export const handler: APIGatewayProxyHandlerV2 = async (event) => {
-  const { hostId, userId, attributes }: JoinEventBody = JSON.parse(
-    event.body || '{}'
-  );
-  let response: JoinResponse = {
-    region: process.env.AWS_REGION!,
-    metadata: {}
-  };
+  const { body = '{}' } = event;
+  const { hostId, userId, attributes }: JoinEventBody = JSON.parse(body);
+  let response: JoinResponse = { region, metadata: {} };
 
-  // Check required input
-  if (!hostId || !userId) {
-    const missingInputs = [];
-    if (!hostId) missingInputs.push('hostId');
-    if (!userId) missingInputs.push('userId');
-
-    return createErrorResponse({
-      code: 400,
-      name: BAD_INPUT_EXCEPTION,
-      message: `Missing required input data: ${missingInputs.join(', ')}`
-    });
-  }
+  console.info('EVENT', JSON.stringify(event));
 
   try {
     const { Item: RealTimeRecordItem } = await ddbSdk.getRealTimeRecord(hostId);
@@ -45,9 +32,11 @@ export const handler: APIGatewayProxyHandlerV2 = async (event) => {
       });
     }
 
-    const { stageArn, chatRoomArn, hostAttributes, type, mode } = unmarshall(
-      RealTimeRecordItem
-    ) as RealTimeRecord;
+    const realTimeRecord = unmarshall(RealTimeRecordItem) as RealTimeRecord;
+    const { stageArn, chatRoomArn, hostAttributes, type, mode } =
+      realTimeRecord;
+
+    console.info(`Joining as "${userId}"`, JSON.stringify(realTimeRecord));
 
     if (type === StageType.VIDEO && mode === StageMode.PK) {
       const { Item: VotesItem } = await ddbSdk.getVotesRecord(hostId, [
@@ -80,6 +69,8 @@ export const handler: APIGatewayProxyHandlerV2 = async (event) => {
   } catch (error) {
     return createErrorResponse({ error });
   }
+
+  console.info('RESPONSE', JSON.stringify(response));
 
   return createSuccessResponse({ body: response });
 };

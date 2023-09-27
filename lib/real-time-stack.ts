@@ -25,17 +25,17 @@ import {
   sendEventPolicy,
   tagResourcesPolicy
 } from './policies';
-import { getDefaultLambdaProps } from './utils';
+import { getDefaultLambdaProps, getDefaultTableProps } from './utils';
 import { UPDATE_STATUS_INTERVAL_IN_SECONDS } from '../lambdas/constants';
 import CronScheduleTrigger from './Constructs/CronScheduleTrigger';
 import IntegratedProxyLambda from './Constructs/IntegratedProxyLambda';
+import schemas from './schemas';
+
+const CREATED_FOR_REALTIME_INDEX_NAME = 'CreatedForRealTimeIndex';
 
 export class RealTimeStack extends Stack {
   constructor(scope: Construct, id: string, props: StackProps) {
     super(scope, id, props);
-
-    const region = Stack.of(this).region;
-    const stackName = Stack.of(this).stackName;
 
     /**
      * Regional API Gateway REST API with API key
@@ -46,6 +46,11 @@ export class RealTimeStack extends Stack {
       deployOptions: { stageName: 'prod' },
       apiKeySourceType: apigw.ApiKeySourceType.HEADER,
       defaultCorsPreflightOptions: { allowOrigins: apigw.Cors.ALL_ORIGINS }
+    });
+    const requestValidator = api.addRequestValidator('RequestValidator', {
+      requestValidatorName: this.createResourceName('RequestValidator'),
+      validateRequestBody: true,
+      validateRequestParameters: true
     });
     const usagePlan = api.addUsagePlan('ApiKeyUsagePlan', {
       apiStages: [{ api, stage: api.deploymentStage }],
@@ -107,25 +112,28 @@ export class RealTimeStack extends Stack {
     });
 
     /**
-     * DynamoDB Tables
+     * DynamoDB Tables and Indexes
+     *
+     *  1. RealTime Table - stores Stage and Chat Room data into "RealTime" records
+     *  2. Votes Table - stores votes casted towards participants of a PK-mode session
+     *  3. CreatedFor RealTime (sparse) Index - stores Stage and Chat Room data with a designated createdFor attribute (i.e. createdFor = "demo")
      */
-    const defaultTableProps: dynamodb.TableProps = {
-      partitionKey: { name: 'hostId', type: dynamodb.AttributeType.STRING },
-      removalPolicy: RemovalPolicy.DESTROY,
-      billingMode: dynamodb.BillingMode.PAY_PER_REQUEST
-    };
+    const hostIdAttr = { name: 'hostId', type: dynamodb.AttributeType.STRING };
 
-    // RealTime Table - stores Stage and Chat Room data into "RealTime" records
     const realTimeTable = new dynamodb.Table(this, 'RealTimeTable', {
-      ...defaultTableProps,
+      ...getDefaultTableProps(hostIdAttr),
       tableName: this.createResourceName('RealTimeTable')
     });
 
-    // Votes Table - stores votes casted towards participants of a PK-mode session
     const votesTable = new dynamodb.Table(this, 'VotesTable', {
-      ...defaultTableProps,
+      ...getDefaultTableProps(hostIdAttr),
       tableName: this.createResourceName('VotesTable'),
       stream: dynamodb.StreamViewType.NEW_AND_OLD_IMAGES
+    });
+
+    realTimeTable.addGlobalSecondaryIndex({
+      indexName: CREATED_FOR_REALTIME_INDEX_NAME,
+      partitionKey: { name: 'createdFor', type: dynamodb.AttributeType.STRING }
     });
 
     /**
@@ -133,8 +141,7 @@ export class RealTimeStack extends Stack {
      */
     new IntegratedProxyLambda(this, 'VerifyLambda', {
       api,
-      method: 'GET',
-      resourcePaths: ['verify'],
+      resources: [{ method: 'GET', path: 'verify' }],
       handler: {
         entryFunctionName: 'verify',
         functionName: this.createResourceName('Verify'),
@@ -147,8 +154,14 @@ export class RealTimeStack extends Stack {
      */
     const createLambda = new IntegratedProxyLambda(this, 'CreateLambda', {
       api,
-      method: 'POST',
-      resourcePaths: ['create'],
+      resources: [
+        { method: 'POST', path: 'create' },
+        { method: 'POST', path: 'create/{proxy+}' }
+      ],
+      requestValidation: {
+        requestValidator,
+        schema: schemas.createRequestSchema
+      },
       handler: {
         entryFunctionName: 'create',
         functionName: this.createResourceName('Create'),
@@ -158,7 +171,7 @@ export class RealTimeStack extends Stack {
           tagResourcesPolicy
         ],
         environment: {
-          STACK: stackName,
+          STACK: this.stackName,
           REAL_TIME_TABLE_NAME: realTimeTable.tableName
         },
         description:
@@ -172,14 +185,17 @@ export class RealTimeStack extends Stack {
      */
     const joinLambda = new IntegratedProxyLambda(this, 'JoinLambda', {
       api,
-      method: 'POST',
-      resourcePaths: ['join'],
+      resources: [{ method: 'POST', path: 'join' }],
+      requestValidation: {
+        requestValidator,
+        schema: schemas.joinRequestSchema
+      },
       handler: {
         entryFunctionName: 'join',
         functionName: this.createResourceName('Join'),
         initialPolicy: [createTokensPolicy, sendEventPolicy],
         environment: {
-          STACK: stackName,
+          STACK: this.stackName,
           REAL_TIME_TABLE_NAME: realTimeTable.tableName,
           VOTES_TABLE_NAME: votesTable.tableName
         },
@@ -194,13 +210,14 @@ export class RealTimeStack extends Stack {
      */
     const listLambda = new IntegratedProxyLambda(this, 'ListLambda', {
       api,
-      method: 'GET',
+      resources: [{ method: 'GET' }],
       handler: {
         entryFunctionName: 'list',
         functionName: this.createResourceName('List'),
         environment: {
-          STACK: stackName,
-          REAL_TIME_TABLE_NAME: realTimeTable.tableName
+          STACK: this.stackName,
+          REAL_TIME_TABLE_NAME: realTimeTable.tableName,
+          CREATED_FOR_REALTIME_INDEX_NAME
         },
         description: 'Retrieves summary information about all customer records'
       }
@@ -212,13 +229,17 @@ export class RealTimeStack extends Stack {
      */
     const deleteLambda = new IntegratedProxyLambda(this, 'DeleteLambda', {
       api,
-      method: 'DELETE',
+      resources: [{ method: 'DELETE' }],
+      requestValidation: {
+        requestValidator,
+        schema: schemas.deleteRequestSchema
+      },
       handler: {
         entryFunctionName: 'delete',
         functionName: this.createResourceName('Delete'),
         initialPolicy: [deleteResourcesPolicy],
         environment: {
-          STACK: stackName,
+          STACK: this.stackName,
           REAL_TIME_TABLE_NAME: realTimeTable.tableName,
           VOTES_TABLE_NAME: votesTable.tableName
         },
@@ -237,14 +258,17 @@ export class RealTimeStack extends Stack {
       'DisconnectLambda',
       {
         api,
-        method: 'PUT',
-        resourcePaths: ['disconnect'],
+        resources: [{ method: 'PUT', path: 'disconnect' }],
+        requestValidation: {
+          requestValidator,
+          schema: schemas.disconnectRequestSchema
+        },
         handler: {
           entryFunctionName: 'disconnect',
           functionName: this.createResourceName('Disconnect'),
           initialPolicy: [disconnectUsersPolicy],
           environment: {
-            STACK: stackName,
+            STACK: this.stackName,
             REAL_TIME_TABLE_NAME: realTimeTable.tableName
           },
           description: 'Disconnects a participant from the Stage and Chat Room'
@@ -258,14 +282,17 @@ export class RealTimeStack extends Stack {
      */
     const updateLambda = new IntegratedProxyLambda(this, 'UpdateLambda', {
       api,
-      method: 'PUT',
-      resourcePaths: ['update', '{proxy+}'],
+      resources: [{ method: 'PUT', path: 'update/{proxy+}' }],
+      requestValidation: {
+        requestValidator,
+        schema: schemas.updateRequestSchema
+      },
       handler: {
         entryFunctionName: 'update',
         functionName: this.createResourceName('Update'),
         initialPolicy: [sendEventPolicy],
         environment: {
-          STACK: stackName,
+          STACK: this.stackName,
           REAL_TIME_TABLE_NAME: realTimeTable.tableName,
           VOTES_TABLE_NAME: votesTable.tableName
         },
@@ -284,14 +311,17 @@ export class RealTimeStack extends Stack {
       'CreateChatTokenLambda',
       {
         api,
-        method: 'POST',
-        resourcePaths: ['chatToken', 'create'],
+        resources: [{ method: 'POST', path: 'chatToken/create' }],
+        requestValidation: {
+          requestValidator,
+          schema: schemas.createChatTokenRequestSchema
+        },
         handler: {
           entryFunctionName: 'createChatToken',
           functionName: this.createResourceName('CreateChatToken'),
           initialPolicy: [createTokensPolicy],
           environment: {
-            STACK: stackName,
+            STACK: this.stackName,
             REAL_TIME_TABLE_NAME: realTimeTable.tableName
           },
           description:
@@ -306,17 +336,20 @@ export class RealTimeStack extends Stack {
      */
     const castVoteLambda = new IntegratedProxyLambda(this, 'CastVoteLambda', {
       api,
-      method: 'POST',
-      resourcePaths: ['castVote'],
+      resources: [{ method: 'POST', path: 'castVote' }],
+      requestValidation: {
+        requestValidator,
+        schema: schemas.castVoteRequestSchema
+      },
       handler: {
         entryFunctionName: 'castVote',
         functionName: this.createResourceName('CastVote'),
         environment: {
-          STACK: stackName,
+          STACK: this.stackName,
           VOTES_TABLE_NAME: votesTable.tableName
         },
         description: 'Casts a vote towards a participant of a PK-mode session',
-        logRetention: logs.RetentionDays.ONE_DAY
+        logRetention: logs.RetentionDays.THREE_DAYS
       }
     });
     votesTable.grantWriteData(castVoteLambda.lambdaFunction);
@@ -332,10 +365,10 @@ export class RealTimeStack extends Stack {
         functionName: this.createResourceName('PublishVotes'),
         initialPolicy: [sendEventPolicy],
         environment: {
-          STACK: stackName,
+          STACK: this.stackName,
           REAL_TIME_TABLE_NAME: realTimeTable.tableName
         },
-        logRetention: logs.RetentionDays.ONE_DAY,
+        logRetention: logs.RetentionDays.THREE_DAYS,
         description:
           'Sends a chat event containing the latest vote tally to all viewers'
       }
@@ -376,7 +409,7 @@ export class RealTimeStack extends Stack {
         functionName: this.createResourceName('UpdateStatus'),
         initialPolicy: [getResourcesPolicy, deleteResourcesPolicy],
         environment: {
-          STACK: stackName,
+          STACK: this.stackName,
           DISTRIBUTION_DOMAIN_NAME: distribution.domainName,
           REAL_TIME_TABLE_NAME: realTimeTable.tableName,
           VOTES_TABLE_NAME: votesTable.tableName
@@ -402,7 +435,7 @@ export class RealTimeStack extends Stack {
     new CfnOutput(this, 'domainName', { value: distribution.domainName });
     new CfnOutput(this, 'secretName', { value: secret.secretName });
     new CfnOutput(this, 'secretUrl', {
-      value: `https://${region}.console.aws.amazon.com/secretsmanager/secret?name=${secret.secretName}`
+      value: `https://${this.region}.console.aws.amazon.com/secretsmanager/secret?name=${secret.secretName}`
     });
   }
 

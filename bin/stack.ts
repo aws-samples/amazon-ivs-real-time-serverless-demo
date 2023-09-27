@@ -13,11 +13,13 @@ import path from 'path';
 
 import { RealTimeStack } from '../lib/real-time-stack';
 
-// Root app construct
 const app = new App();
 
 // Runtime context values
 const stackName: string = app.node.tryGetContext('stackName');
+const terminationProtection: boolean = JSON.parse(
+  app.node.tryGetContext('terminationProtection') || 'false'
+);
 const nag: boolean = JSON.parse(app.node.tryGetContext('nag') || 'false');
 const publish: boolean = JSON.parse(
   app.node.tryGetContext('publish') || 'false'
@@ -34,7 +36,10 @@ let env: Environment = {
 let synthesizer: DefaultStackSynthesizer | undefined;
 
 if (publish) {
-  const publishEnvPath = path.resolve(__dirname, `../publish.${region}.env`);
+  const publishEnvPath = path.resolve(
+    __dirname,
+    `../scripts/publish/publish.${region}.env`
+  );
   dotenv.config({ path: publishEnvPath });
 
   synthesizer = new DefaultStackSynthesizer({
@@ -44,13 +49,11 @@ if (publish) {
     bucketPrefix: `${stackName}/`
   });
 
-  env = {
-    account: Aws.ACCOUNT_ID, // account-agnostic
-    region
-  };
+  // account-agnostic environment
+  env = { account: Aws.ACCOUNT_ID, region };
 }
 
-new RealTimeStack(app, stackName, { env, synthesizer });
+new RealTimeStack(app, stackName, { env, synthesizer, terminationProtection });
 
 // Check the CDK app for best practices by using a combination of rule packs
 if (nag) {

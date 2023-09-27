@@ -2,7 +2,7 @@
 
 .PHONY: help app install bootstrap synth deploy destroy clean
 
-# Available ENV variables
+# General ENV variables
 #
 # - AWS_PROFILE: named AWS CLI profile used to deploy
 #								 default: none - default profile is used
@@ -10,18 +10,39 @@
 # - STACK: stack name
 #					 default: IVSRealTimeDemo
 #
+# - TERM_PROTECTION: when set to true, enables stack termination protection
+#										 default: false
+#
 # - NAG: enables application security and compliance checks
 #				 default: false
+#
+#
+#	Seeder ENV variables
+# 
+# - COUNT: the number of items to seed
+#					 default: 1, max: 10
+#
+# - TYPE: the type of item to seed ("video" or "audio")
+#					default: video
+#
+#
+#	Publish ENV variables
+# 
+# - FILE_ASSETS_BUCKET_NAME_PREFIX: the name prefix used to create or retrieve the S3 bucket to which file assets are saved. 
+#																		This prefix is prepended with the AWS region to create the complete bucket name.
 
 AWS_PROFILE_FLAG = --profile $(AWS_PROFILE)
 STACK 				  ?= IVSRealTimeDemo
+TERM_PROTECTION ?= false
 NAG							?= false
+
 CDK_OPTIONS 		 = $(if $(AWS_PROFILE),$(AWS_PROFILE_FLAG)) \
 									 --context stackName=$(STACK) \
+									 --context terminationProtection=$(TERM_PROTECTION) \
 									 --context nag=$(NAG)
 
-DEFAULT_SCRIPT_OPTIONS = $(if $(AWS_PROFILE),$(AWS_PROFILE_FLAG)) \
-									 			 --stackName $(STACK)
+SCRIPT_OPTIONS   = $(if $(AWS_PROFILE),$(AWS_PROFILE_FLAG)) \
+								 	 --stackName $(STACK)
 
 # Seeder options
 COUNT						?= 1
@@ -55,15 +76,14 @@ synth: ## Synthesizes the CDK app and produces a cloud assembly in cdk.out
 
 deploy: ## Deploys the stack
 	@echo "🚀 Deploying $(STACK)..."
-	npx cdk deploy $(STACK) $(CDK_OPTIONS) --outputs-file temp_out.json
+	npx cdk deploy $(STACK) $(CDK_OPTIONS)
 	@echo "🛠️  Running post-deploy tasks..."
-	node scripts/post-deploy.js $(DEFAULT_SCRIPT_OPTIONS)
-	@rm temp_out.json
+	node scripts/post-deploy.js $(SCRIPT_OPTIONS)
 	@echo "\n$$(tput bold) ✅ $(STACK) Deployed Successfully $$(tput sgr0)"
 
 output: ## Retrieves the CloudFormation stack outputs
 	@echo "🧲 Retrieving stack outputs for $(STACK)..."
-	aws cloudformation describe-stacks --stack-name $(STACK) --query 'Stacks[].Outputs'
+	aws cloudformation describe-stacks --stack-name $(STACK) --query 'Stacks[].Outputs' --output=table
 
 destroy: clean ## Destroys the stack and cleans up
 	@echo "🧨 Destroying $(STACK)..."
@@ -71,21 +91,25 @@ destroy: clean ## Destroys the stack and cleans up
 
 clean: ## Deletes the cloud assembly directory (cdk.out)
 	@echo "🧹 Cleaning..."
-	rm -rf cdk.out
+	rm -rf dist cdk.out
 
-seed: ## Creates a specified number of randomly generated demo records
+seed: ## Creates a specified number of randomly generated demo items
 	@echo "🌱 Seeding..."
-	node scripts/seed/seed.js $(DEFAULT_SCRIPT_OPTIONS) --count $(COUNT) --type $(TYPE)
+	node scripts/seed/seed.js $(SCRIPT_OPTIONS) --count $(COUNT) --type $(TYPE)
+
+delete-seed: ## Deletes all seeded items
+	@echo "🧨 Deleting all seeded items..."
+	node scripts/seed/deleteSeed.js $(SCRIPT_OPTIONS)
 
 publish: guard-FILE_ASSETS_BUCKET_NAME_PREFIX ## Publishes stack file assets to an S3 bucket and generate a launch stack URL
 	@echo "🛠️  Preparing resources..."
-	node scripts/publish/prepare.js $(DEFAULT_SCRIPT_OPTIONS) --fileAssetsBucketNamePrefix $(FILE_ASSETS_BUCKET_NAME_PREFIX)
+	node scripts/publish/pre-publish.js $(SCRIPT_OPTIONS) --fileAssetsBucketNamePrefix $(FILE_ASSETS_BUCKET_NAME_PREFIX)
 	@echo "🧪 Synthesizing stack..."
 	npx cdk synth $(STACK) $(CDK_OPTIONS) --context publish=true --quiet
 	@echo "🚀 Publishing file assets..."
 	npx cdk-assets publish --path cdk.out/$(STACK).assets.json
 	@echo "\n$$(tput bold)✅ LAUNCH STACK URL: $$(tput sgr0)\n\
-	\033[36m`node scripts/publish/generateLaunchStackUrl.js $(DEFAULT_SCRIPT_OPTIONS)`\033[0m"
+	\033[36m`node scripts/publish/generateLaunchStackUrl.js $(SCRIPT_OPTIONS)`\033[0m"
 
 guard-%:
 	@ if [ "${${*}}" = "" ]; then \

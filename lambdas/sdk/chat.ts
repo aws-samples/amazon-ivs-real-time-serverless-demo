@@ -18,16 +18,19 @@ import { ivsChatClient } from '../clients';
 
 export const createRoom = async ({
   cid,
-  hostId
+  hostId,
+  tags
 }: {
   cid: string;
   hostId: string;
+  tags?: Record<string, string>;
 }): Promise<Room> =>
   await ivsChatClient.send(
     new CreateRoomCommand({
       name: `${cid}-${hostId}-Room`,
       tags: {
         ...RESOURCE_TAGS,
+        ...tags,
         cid,
         createdAt: new Date().toISOString()
       }

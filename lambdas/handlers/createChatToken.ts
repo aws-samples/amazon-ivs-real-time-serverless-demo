@@ -5,29 +5,17 @@ import {
 } from '@aws-sdk/client-ivschat';
 import { unmarshall } from '@aws-sdk/util-dynamodb';
 
-import { BAD_INPUT_EXCEPTION, USER_NOT_FOUND_EXCEPTION } from '../constants';
+import { USER_NOT_FOUND_EXCEPTION } from '../constants';
 import { chatSdk, ddbSdk } from '../sdk';
 import { CreateChatTokenBody } from '../types';
 import { createErrorResponse, createSuccessResponse } from '../utils';
 
 export const handler: APIGatewayProxyHandlerV2 = async (event) => {
-  const { hostId, userId, attributes }: CreateChatTokenBody = JSON.parse(
-    event.body || '{}'
-  );
+  const { body = '{}' } = event;
+  const { hostId, userId, attributes }: CreateChatTokenBody = JSON.parse(body);
   let response: CreateChatTokenResponse;
 
-  // Check required input
-  if (!hostId || !userId) {
-    const missingInputs = [];
-    if (!hostId) missingInputs.push('hostId');
-    if (!userId) missingInputs.push('userId');
-
-    return createErrorResponse({
-      code: 400,
-      name: BAD_INPUT_EXCEPTION,
-      message: `Missing required input data: ${missingInputs.join(', ')}`
-    });
-  }
+  console.info('EVENT', JSON.stringify(event));
 
   try {
     const { Item: RealTimeRecordItem } = await ddbSdk.getRealTimeRecord(hostId);
@@ -40,16 +28,25 @@ export const handler: APIGatewayProxyHandlerV2 = async (event) => {
       });
     }
 
-    const { chatRoomArn } = unmarshall(RealTimeRecordItem);
+    const realTimeRecord = unmarshall(RealTimeRecordItem);
+    const { chatRoomArn } = realTimeRecord;
+
+    console.info(
+      `Creating chat token for user "${userId}"`,
+      JSON.stringify(realTimeRecord)
+    );
+
     response = await chatSdk.createChatToken({
+      userId,
       attributes,
-      capabilities: [ChatTokenCapability.SEND_MESSAGE],
       chatRoomArn,
-      userId
+      capabilities: [ChatTokenCapability.SEND_MESSAGE]
     });
   } catch (error) {
     return createErrorResponse({ error });
   }
+
+  console.info('RESPONSE', JSON.stringify(response));
 
   return createSuccessResponse({ body: response });
 };

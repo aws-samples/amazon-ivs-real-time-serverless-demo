@@ -1,5 +1,5 @@
 const { CloudFormationClient } = require('@aws-sdk/client-cloudformation');
-const { fromIni, fromEnv } = require('@aws-sdk/credential-providers');
+const { fromIni } = require('@aws-sdk/credential-providers');
 const { IAMClient } = require('@aws-sdk/client-iam');
 const { parseArgs } = require('util');
 const { S3Client } = require('@aws-sdk/client-s3');
