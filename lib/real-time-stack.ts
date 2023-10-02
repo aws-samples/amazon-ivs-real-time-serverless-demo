@@ -2,11 +2,14 @@ import {
   aws_apigateway as apigw,
   aws_cloudfront as cloudfront,
   aws_cloudfront_origins as origins,
+  aws_cloudwatch_actions as cwActions,
   aws_dynamodb as dynamodb,
   aws_lambda_event_sources as eventSources,
   aws_lambda_nodejs as lambda,
   aws_logs as logs,
   aws_secretsmanager as secretsManager,
+  aws_sns as sns,
+  aws_sns_subscriptions as snsSub,
   CfnOutput,
   Duration,
   RemovalPolicy,
@@ -33,9 +36,14 @@ import schemas from './schemas';
 
 const CREATED_FOR_REALTIME_INDEX_NAME = 'CreatedForRealTimeIndex';
 
+interface RealTimeStackProps extends StackProps {
+  alarmsEmail?: string;
+}
+
 export class RealTimeStack extends Stack {
-  constructor(scope: Construct, id: string, props: StackProps) {
+  constructor(scope: Construct, id: string, props: RealTimeStackProps) {
     super(scope, id, props);
+    const { alarmsEmail } = props;
 
     /**
      * Regional API Gateway REST API with API key
@@ -56,6 +64,27 @@ export class RealTimeStack extends Stack {
       apiStages: [{ api, stage: api.deploymentStage }],
       name: this.createResourceName('UsagePlan')
     });
+
+    // Set up a CloudWatch Alarm for API server errors (5xx)
+    const serverErrorsMetric = api.metricServerError();
+    const serverErrorsAlarm = serverErrorsMetric.createAlarm(
+      this,
+      'ServerErrorsAlarm',
+      {
+        threshold: 5,
+        evaluationPeriods: 2,
+        datapointsToAlarm: 1,
+        alarmName: this.createResourceName('ServerErrorsAlarm')
+      }
+    );
+
+    if (alarmsEmail) {
+      const serverErrorsTopic = new sns.Topic(this, 'ServerErrorsTopic');
+      const serverErrorsAction = new cwActions.SnsAction(serverErrorsTopic);
+      const serverErrorsEmailSub = new snsSub.EmailSubscription(alarmsEmail);
+      serverErrorsTopic.addSubscription(serverErrorsEmailSub);
+      serverErrorsAlarm.addAlarmAction(serverErrorsAction);
+    }
 
     // Generate a random secret string that will be used as the API key
     const secret = new secretsManager.Secret(this, 'Secret', {
@@ -118,7 +147,10 @@ export class RealTimeStack extends Stack {
      *  2. Votes Table - stores votes casted towards participants of a PK-mode session
      *  3. CreatedFor RealTime (sparse) Index - stores Stage and Chat Room data with a designated createdFor attribute (i.e. createdFor = "demo")
      */
-    const hostIdAttr = { name: 'hostId', type: dynamodb.AttributeType.STRING };
+    const hostIdAttr: dynamodb.Attribute = {
+      name: 'hostId',
+      type: dynamodb.AttributeType.STRING
+    };
 
     const realTimeTable = new dynamodb.Table(this, 'RealTimeTable', {
       ...getDefaultTableProps(hostIdAttr),
@@ -384,7 +416,7 @@ export class RealTimeStack extends Stack {
         parallelizationFactor: 1,
         reportBatchItemFailures: false,
         /**
-         * DynamoDB Streams are guaranteed to processes records in order.
+         * DynamoDB Streams are guaranteed to process records in order.
          * As a side effect of this, when a record fails to process, it is
          * retried until it is successfully processed or it expires from the
          * stream before any records after it in the stream are processed.

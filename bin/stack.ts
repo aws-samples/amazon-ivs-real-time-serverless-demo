@@ -17,6 +17,7 @@ const app = new App();
 
 // Runtime context values
 const stackName: string = app.node.tryGetContext('stackName');
+const alarmsEmail: string | undefined = app.node.tryGetContext('alarmsEmail');
 const terminationProtection: boolean = JSON.parse(
   app.node.tryGetContext('terminationProtection') || 'false'
 );
@@ -53,7 +54,12 @@ if (publish) {
   env = { account: Aws.ACCOUNT_ID, region };
 }
 
-new RealTimeStack(app, stackName, { env, synthesizer, terminationProtection });
+new RealTimeStack(app, stackName, {
+  env,
+  synthesizer,
+  terminationProtection,
+  alarmsEmail
+});
 
 // Check the CDK app for best practices by using a combination of rule packs
 if (nag) {

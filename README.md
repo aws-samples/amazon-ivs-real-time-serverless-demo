@@ -98,22 +98,32 @@ See [Commands](#commands) for a comprehensive list of the `destroy` option.
 
 _Note: resources created after the deployment will not be deleted. Such resources may include Stages and Chat Rooms._
 
+## Server Error Alarms
+
+When deploying the stack using the command-line, a CloudWatch alarm will be triggered when the API returns 5 or more server errors (5XX) within 10 minutes. To receive email notifications when an alarm is triggered, you must pass an `ALARMS_EMAIL` option to the `make app` or `make deploy` commands. For example,
+
+```
+make deploy ALARMS_EMAIL=youremail@example.com
+```
+
+Once the stack has been deployed, you will receive an email from AWS prompting you to confirm the SNS topic subscription to receive email notifications.
+
 ## Commands
 
-|                 | **Description**                                                             | **Options**                                                                   |
-| --------------- | --------------------------------------------------------------------------- | ----------------------------------------------------------------------------- |
-| **app**         | Installs NPM dependencies, bootstraps, and deploys the stack                | `AWS_PROFILE`, `AWS_REGION`, `STACK`, `NAG`                                   |
-| **install**     | Installs NPM dependencies                                                   | -                                                                             |
-| **bootstrap**   | Deploys the CDK Toolkit staging stack                                       | `AWS_PROFILE`, `AWS_REGION`, `STACK`, `NAG`                                   |
-| **synth**       | Synthesizes the CDK app and produces a cloud assembly in cdk.out            | `AWS_PROFILE`, `AWS_REGION`, `STACK`, `NAG`                                   |
-| **deploy**      | Deploys the stack                                                           | `AWS_PROFILE`, `AWS_REGION`, `STACK`, `NAG`, `TERM_PROTECTION`                |
-| **output**      | Retrieves the CloudFormation stack outputs                                  | `STACK`                                                                       |
-| **destroy**     | Destroys the stack and cleans up                                            | `AWS_PROFILE`, `AWS_REGION`, `STACK`, `NAG`                                   |
-| **clean**       | Deletes the cloud assembly directory (cdk.out)                              | -                                                                             |
-| **seed**        | Creates a specified number of randomly generated demo items                 | `AWS_PROFILE`, `AWS_REGION`, `STACK`, `COUNT`, `TYPE`                         |
-| **delete-seed** | Deletes all seeded items                                                    | `AWS_PROFILE`, `AWS_REGION`, `STACK`                                          |
-| **publish**     | Publishes stack file assets to an S3 bucket and generate a launch stack URL | `AWS_PROFILE`, `AWS_REGION`, `STACK`, `NAG`, `FILE_ASSETS_BUCKET_NAME_PREFIX` |
-| **help**        | Shows a help message with all the available make rules                      | -                                                                             |
+|                 | **Description**                                                             | **Options**                                                                    |
+| --------------- | --------------------------------------------------------------------------- | ------------------------------------------------------------------------------ |
+| **app**         | Installs NPM dependencies, bootstraps, and deploys the stack                | `AWS_PROFILE`, `AWS_REGION`, `STACK`, `NAG`                                    |
+| **install**     | Installs NPM dependencies                                                   | -                                                                              |
+| **bootstrap**   | Deploys the CDK Toolkit staging stack                                       | `AWS_PROFILE`, `AWS_REGION`, `STACK`, `NAG`                                    |
+| **synth**       | Synthesizes the CDK app and produces a cloud assembly in cdk.out            | `AWS_PROFILE`, `AWS_REGION`, `STACK`, `NAG`                                    |
+| **deploy**      | Deploys the stack                                                           | `AWS_PROFILE`, `AWS_REGION`, `STACK`, `NAG`, `ALARMS_EMAIL`, `TERM_PROTECTION` |
+| **output**      | Retrieves the CloudFormation stack outputs                                  | `STACK`                                                                        |
+| **destroy**     | Destroys the stack and cleans up                                            | `AWS_PROFILE`, `AWS_REGION`, `STACK`, `NAG`                                    |
+| **clean**       | Deletes the cloud assembly directory (cdk.out)                              | -                                                                              |
+| **seed**        | Creates a specified number of randomly generated demo items                 | `AWS_PROFILE`, `AWS_REGION`, `STACK`, `COUNT`, `TYPE`                          |
+| **delete-seed** | Deletes all seeded items                                                    | `AWS_PROFILE`, `AWS_REGION`, `STACK`                                           |
+| **publish**     | Publishes stack file assets to an S3 bucket and generate a launch stack URL | `AWS_PROFILE`, `AWS_REGION`, `STACK`, `NAG`, `FILE_ASSETS_BUCKET_NAME_PREFIX`  |
+| **help**        | Shows a help message with all the available make rules                      | -                                                                              |
 
 ### Command options
 
@@ -122,6 +132,8 @@ _Note: resources created after the deployment will not be deleted. Such resource
 `AWS_REGION` - the AWS region used for commands that interact with AWS. Defaults to the region associated with your `default` AWS CLI profile.
 
 `STACK` - the stack name. Defaults to `IVSRealTimeDemo`.
+
+`ALARMS_EMAIL` - the email that will be receiving CloudWatch alarm notifications.
 
 `TERM_PROTECTION` - set to `true` to enable stack termination protection. Defaults to `false`.
 

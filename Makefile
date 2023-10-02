@@ -10,6 +10,9 @@
 # - STACK: stack name
 #					 default: IVSRealTimeDemo
 #
+# - ALARMS_EMAIL: the email that will be receiving CloudWatch alarm notifications
+#					 				default: none
+#
 # - TERM_PROTECTION: when set to true, enables stack termination protection
 #										 default: false
 #
@@ -37,6 +40,7 @@ TERM_PROTECTION ?= false
 NAG							?= false
 
 CDK_OPTIONS 		 = $(if $(AWS_PROFILE),$(AWS_PROFILE_FLAG)) \
+									 $(if $(ALARMS_EMAIL),--context alarmsEmail=$(ALARMS_EMAIL)) \
 									 --context stackName=$(STACK) \
 									 --context terminationProtection=$(TERM_PROTECTION) \
 									 --context nag=$(NAG)
