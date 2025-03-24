@@ -32,7 +32,7 @@
     "@aws-sdk/credential-providers": "^3.496.0",
     "@aws-sdk/lib-dynamodb": "^3.496.0",
     "@aws-sdk/util-dynamodb": "^3.496.0",
-    "aws-cdk-lib": "^2.122.0",
+    "aws-cdk-lib": "^2.185.0",
     "constructs": "^10.3.0",
     "cron-parser": "^4.9.0",
     "qrcode-terminal": "^0.12.0",
